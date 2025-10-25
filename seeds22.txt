@@ -1,0 +1,299 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final savedThemeDark = prefs.getBool('isDark') ?? false;
+  final savedLang = prefs.getString('lang') ?? 'en';
+
+  runApp(MyApp(isDark: savedThemeDark, initialLang: savedLang));
+}
+
+class MyApp extends StatefulWidget {
+  final bool isDark;
+  final String initialLang;
+
+  MyApp({required this.isDark, required this.initialLang});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late bool _isDark;
+  late String _lang;
+
+  // Simple translations map
+  final Map<String, Map<String, String>> _translations = {
+    'en': {
+      'app_title': 'Seed Shop Locator',
+      'welcome': 'Welcome, Farmer!',
+      'enter_location': 'Enter District / Village',
+      'search': 'Search',
+      'settings': 'Settings',
+      'theme': 'Dark Theme',
+      'language': 'Language',
+      'logout': 'Logout',
+    },
+    'mr': {
+      'app_title': 'सीड शॉप लोकेटर',
+      'welcome': 'स्वागत आहे, शेतकरी!',
+      'enter_location': 'जिल्हा / गाव टाका',
+      'search': 'शोधा',
+      'settings': 'सेटिंग्ज',
+      'theme': 'डार्क थीम',
+      'language': 'भाषा',
+      'logout': 'लॉगआउट',
+    },
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _isDark = widget.isDark;
+    _lang = widget.initialLang;
+  }
+
+  String t(String key) {
+    // translation helper
+    return _translations[_lang]?[key] ?? key;
+  }
+
+  Future<void> _setTheme(bool val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDark', val);
+    setState(() => _isDark = val);
+  }
+
+  Future<void> _setLang(String lang) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('lang', lang);
+    setState(() => _lang = lang);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: t('app_title'),
+      theme: ThemeData(
+        brightness: Brightness.light,
+        primarySwatch: Colors.green,
+        scaffoldBackgroundColor: Colors.grey[50],
+        appBarTheme: AppBarTheme(backgroundColor: Colors.green),
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.green,
+        scaffoldBackgroundColor: Colors.grey[900],
+        appBarTheme: AppBarTheme(backgroundColor: Colors.grey[850]),
+      ),
+      themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
+      home: HomePage(
+        t: t,
+        isDark: _isDark,
+        onThemeChanged: _setTheme,
+        lang: _lang,
+        onLangChanged: _setLang,
+      ),
+    );
+  }
+}
+
+class HomePage extends StatefulWidget {
+  final String Function(String) t;
+  final bool isDark;
+  final ValueChanged<bool> onThemeChanged;
+  final String lang;
+  final ValueChanged<String> onLangChanged;
+
+  HomePage({
+    required this.t,
+    required this.isDark,
+    required this.onThemeChanged,
+    required this.lang,
+    required this.onLangChanged,
+  });
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final TextEditingController _locController = TextEditingController();
+
+  void _searchShops() {
+    final loc = _locController.text.trim();
+    if (loc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.t('enter_location'))),
+      );
+      return;
+    }
+    // TODO: call Firestore with district/village filter
+    // For demo just show dialog
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(widget.t('search')),
+        content: Text('Searching shops for: $loc'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _locController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.t('app_title')),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(
+                  t: widget.t,
+                  isDark: isDark,
+                  onThemeChanged: widget.onThemeChanged,
+                  lang: widget.lang,
+                  onLangChanged: widget.onLangChanged,
+                ),
+              ),
+            ),
+          )
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Text(widget.t('welcome'), style: Theme.of(context).textTheme.headline6),
+            SizedBox(height: 20),
+            TextField(
+              controller: _locController,
+              decoration: InputDecoration(
+                labelText: widget.t('enter_location'),
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.location_on),
+              ),
+            ),
+            SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _searchShops,
+              icon: Icon(Icons.search),
+              label: Text(widget.t('search')),
+            ),
+            SizedBox(height: 20),
+            // Example of using translation in widgets
+            ListTile(
+              leading: Icon(Icons.store),
+              title: Text('Green Agro Seeds'),
+              subtitle: Text('Wheat, Rice, Cotton'),
+              trailing: Icon(Icons.chevron_right),
+              onTap: () {
+                // Navigate to shop details
+              },
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  final String Function(String) t;
+  final bool isDark;
+  final ValueChanged<bool> onThemeChanged;
+  final String lang;
+  final ValueChanged<String> onLangChanged;
+
+  SettingsPage({
+    required this.t,
+    required this.isDark,
+    required this.onThemeChanged,
+    required this.lang,
+    required this.onLangChanged,
+  });
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  late bool _localDark;
+  late String _localLang;
+
+  @override
+  void initState() {
+    super.initState();
+    _localDark = widget.isDark;
+    _localLang = widget.lang;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.t('settings')),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            SwitchListTile(
+              title: Text(widget.t('theme')),
+              value: _localDark,
+              onChanged: (val) {
+                setState(() => _localDark = val);
+                widget.onThemeChanged(val);
+              },
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Text('${widget.t('language')}: ', style: TextStyle(fontSize: 16)),
+                SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: _localLang,
+                  items: [
+                    DropdownMenuItem(child: Text('English'), value: 'en'),
+                    DropdownMenuItem(child: Text('मराठी'), value: 'mr'),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _localLang = val);
+                      widget.onLangChanged(val);
+                    }
+                  },
+                )
+              ],
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                // Clear saved prefs (optional logout style)
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Settings saved')));
+              },
+              child: Text('Save'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
